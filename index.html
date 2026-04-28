@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Subnetting Tool</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- LOADING SCREEN                                          -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div id="loader">
+  <div class="loader-inner">
+
+    <!-- Animated IP packet grid -->
+    <div class="packet-grid" id="packet-grid"></div>
+
+    <!-- Logo + title -->
+    <div class="loader-logo">
+      <div class="loader-icon">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+          <rect x="2" y="2" width="44" height="44" rx="10" stroke="#4f8ef7" stroke-width="1.5" stroke-dasharray="4 2"/>
+          <text x="24" y="30" text-anchor="middle" font-family="monospace" font-size="14" font-weight="700" fill="#4f8ef7">/24</text>
+        </svg>
+      </div>
+      <div class="loader-title">Subnetting Tool</div>
+      <div class="loader-sub">// initializing network layers</div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="loader-bar-wrap">
+      <div class="loader-bar" id="loader-bar"></div>
+    </div>
+
+    <!-- Scrolling log lines -->
+    <div class="loader-log" id="loader-log"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- MAIN APP (hidden until load complete)                   -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="container" id="app-container" style="opacity:0;pointer-events:none">
+  <h1>Subnetting Tool</h1>
+  <p class="subtitle">// interactive IP subnetting reference</p>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('bits')">Core idea</button>
+    <button class="tab" onclick="switchTab('calc')">Calculator</button>
+    <button class="tab" onclick="switchTab('cheat')">Cheat sheet</button>
+    <button class="tab" onclick="switchTab('quiz')">Quiz</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- PANEL: Core idea                                        -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="panel-bits" class="panel active">
+
+    <!-- IP Class row (auto-detect + manual override) -->
+    <div class="card">
+      <div class="card-label">IP Address — 192.168.1.42 (example)</div>
+
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <span style="font-size:1rem;font-weight:600;color:var(--text)">192.168.1.42</span>
+        <div id="auto-class-badge"></div>
+      </div>
+
+      <!-- Manual class override buttons -->
+      <div class="class-selector-label">Override class manually (click to toggle):</div>
+      <div class="class-selector">
+        <button class="class-btn" data-cls="A" onclick="setClassOverride('A')">Class A</button>
+        <button class="class-btn" data-cls="B" onclick="setClassOverride('B')">Class B</button>
+        <button class="class-btn" data-cls="C" onclick="setClassOverride('C')">Class C</button>
+        <button class="class-btn" data-cls="D" onclick="setClassOverride('D')">Class D</button>
+        <button class="class-btn" data-cls="E" onclick="setClassOverride('E')">Class E</button>
+      </div>
+
+      <!-- Class info panel -->
+      <div class="class-info-panel" id="class-info-panel"></div>
+    </div>
+
+    <!-- Bit slider -->
+    <div class="card">
+      <div class="card-label">Prefix length — drag to split 32 bits into network / host</div>
+      <div class="slider-wrap">
+        <span class="slider-label">/</span>
+        <input type="range" id="prefix-slider" min="8" max="30" value="24" oninput="updateBits()">
+        <span class="slider-val" id="prefix-label">24</span>
+      </div>
+      <div id="bit-display" class="bit-row"></div>
+      <div class="legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background:var(--blue-bg);border:1px solid var(--blue-border)"></div>
+          Network bits (fixed)
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:var(--green-bg);border:1px solid var(--green-border)"></div>
+          Host bits (variable)
+        </div>
+      </div>
+    </div>
+
+    <div id="bar-wrap" class="subnet-bar">
+      <div id="bar-net" class="bar-net" style="width:75%">/24 — network</div>
+      <div id="bar-host" class="bar-host">8 host bits</div>
+    </div>
+
+    <div class="grid2">
+      <div class="card"><div class="card-label">Subnet mask</div><div class="card-value" id="mask-val">255.255.255.0</div></div>
+      <div class="card"><div class="card-label">Usable hosts</div><div class="card-value" id="hosts-val">254</div></div>
+      <div class="card"><div class="card-label">Network address</div><div class="card-value" id="net-addr">192.168.1.0</div></div>
+      <div class="card"><div class="card-label">Broadcast address</div><div class="card-value" id="bcast-addr">192.168.1.255</div></div>
+    </div>
+
+    <div class="info-box">
+      <strong>Why usable = total − 2?</strong><br>
+      All host bits = 0 → <strong>network address</strong> (identifies the subnet, never a device).<br>
+      All host bits = 1 → <strong>broadcast address</strong> (sends to every device on the subnet).
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- PANEL: Calculator                                       -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="panel-calc" class="panel">
+
+    <!-- Input row -->
+    <div class="card">
+      <div class="card-label">Enter IP in CIDR notation</div>
+      <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div>
+          <input type="text" id="cidr-input" value="192.168.1.0/24" placeholder="e.g. 10.0.0.0/8" oninput="calcSubnet()">
+          <div class="err" id="calc-err"></div>
+        </div>
+        <!-- IP Class badge (auto) -->
+        <div style="display:flex;flex-direction:column;gap:4px;padding-top:10px">
+          <div id="c-class"></div>
+          <div id="c-private"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results grid -->
+    <div class="grid2">
+      <div class="card"><div class="card-label">Network address</div><div class="card-value" id="c-net"></div></div>
+      <div class="card"><div class="card-label">Broadcast address</div><div class="card-value" id="c-bcast"></div></div>
+      <div class="card"><div class="card-label">First usable host</div><div class="card-value" id="c-first"></div></div>
+      <div class="card"><div class="card-label">Last usable host</div><div class="card-value" id="c-last"></div></div>
+      <div class="card"><div class="card-label">Subnet mask</div><div class="card-value" id="c-mask"></div></div>
+      <div class="card"><div class="card-label">Usable hosts</div><div class="card-value" id="c-hosts"></div></div>
+    </div>
+
+    <!-- Binary mask -->
+    <div class="card">
+      <div class="card-label">Binary subnet mask</div>
+      <div id="c-binmask" class="bit-row"></div>
+    </div>
+
+    <!-- Host range -->
+    <div class="card">
+      <div class="card-label">Host range</div>
+      <div class="card-value" id="c-range" style="font-size:0.88rem"></div>
+    </div>
+
+    <!-- Subnet Splitter -->
+    <div class="section-divider">Subnet Splitter</div>
+    <div class="card">
+      <div class="card-label" style="margin-bottom:10px">Split this subnet into equal parts</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <span style="font-size:0.82rem;color:var(--text2)">Split into</span>
+        <select id="split-select" onchange="onSplitChange()">
+          <option value="2">2 subnets</option>
+          <option value="4">4 subnets</option>
+          <option value="8">8 subnets</option>
+          <option value="16">16 subnets</option>
+        </select>
+      </div>
+      <div id="splitter-result"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- PANEL: Cheat sheet                                      -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="panel-cheat" class="panel">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="cheat-header">
+        <span>CIDR</span>
+        <span>Subnet mask</span>
+        <span>Hosts</span>
+        <span>Use</span>
+      </div>
+      <div id="cheat-body"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- PANEL: Quiz                                             -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="panel-quiz" class="panel">
+    <div class="card" id="quiz-card">
+      <div class="quiz-meta" id="quiz-meta"></div>
+      <div class="quiz-q" id="quiz-q"></div>
+      <div id="quiz-opts"></div>
+      <div class="feedback" id="feedback"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="next-btn" onclick="nextQ()" style="display:none">
+        Next question →
+      </button>
+    </div>
+  </div>
+
+</div>
+</div><!-- end #app-container -->
+
+<!-- Footer -->
+<footer class="site-footer">
+  <div class="footer-content">
+    <span class="footer-name">Bivek</span>
+    <span class="footer-divider">•</span>
+    <span class="footer-year">© 2026</span>
+  </div>
+</footer>
+
+<script>
+// ─── Loading screen logic ──────────────────────────────────────────────────
+
+const LOG_LINES = [
+  'Initializing IPv4 address space...',
+  'Loading RFC 791 (Internet Protocol)...',
+  'Parsing CIDR notation tables...',
+  'Building subnet mask lookup cache...',
+  'Generating 32-bit address tree...',
+  'Mapping Class A → 1.0.0.0/8 blocks...',
+  'Mapping Class B → 128.0.0.0/12 blocks...',
+  'Mapping Class C → 192.0.0.0/24 blocks...',
+  'Loading RFC 1918 private ranges...',
+  'Allocating host bit calculators...',
+  'Compiling broadcast address engine...',
+  'Warming up subnet splitter...',
+  'Rendering bit-level visualizer...',
+  'Loading quiz question bank...',
+  'All layers initialized. Ready.',
+];
+
+const PACKET_CHARS = ['0','1','0','1','1','0','1','0'];
+
+function buildPacketGrid() {
+  const grid = document.getElementById('packet-grid');
+  const cols = 20, rows = 5;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = document.createElement('span');
+      cell.className = 'pgrid-cell';
+      cell.textContent = PACKET_CHARS[Math.floor(Math.random() * PACKET_CHARS.length)];
+      cell.style.animationDelay = (Math.random() * 2).toFixed(2) + 's';
+      cell.style.animationDuration = (1.2 + Math.random() * 1.6).toFixed(2) + 's';
+      grid.appendChild(cell);
+    }
+  }
+}
+
+function runLoader() {
+  buildPacketGrid();
+
+  const bar     = document.getElementById('loader-bar');
+  const logEl   = document.getElementById('loader-log');
+  const loader  = document.getElementById('loader');
+  const appCont = document.getElementById('app-container');
+
+  let lineIdx  = 0;
+  const total  = LOG_LINES.length;
+  const stepMs = 90;
+
+  function step() {
+    if (lineIdx >= total) {
+      // 100% → fade out loader, fade in app
+      bar.style.width = '100%';
+      setTimeout(() => {
+        loader.classList.add('loader-out');
+        appCont.style.opacity    = '1';
+        appCont.style.transition = 'opacity 0.5s ease';
+        appCont.style.pointerEvents = 'auto';
+        setTimeout(() => loader.remove(), 600);
+      }, 300);
+      return;
+    }
+
+    // Advance progress bar
+    bar.style.width = Math.round(((lineIdx + 1) / total) * 100) + '%';
+
+    // Add log line
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    const isLast = lineIdx === total - 1;
+    line.innerHTML = isLast
+      ? `<span class="log-ok">✓</span> ${LOG_LINES[lineIdx]}`
+      : `<span class="log-arrow">›</span> ${LOG_LINES[lineIdx]}`;
+    logEl.appendChild(line);
+    // Keep only last 5 lines visible
+    if (logEl.children.length > 5) logEl.removeChild(logEl.firstChild);
+    logEl.scrollTop = logEl.scrollHeight;
+
+    lineIdx++;
+    setTimeout(step, stepMs + Math.random() * 60);
+  }
+
+  step();
+}
+
+document.addEventListener('DOMContentLoaded', runLoader);
+</script>
+
+<script src="app.js"></script>
+</body>
+</html>
